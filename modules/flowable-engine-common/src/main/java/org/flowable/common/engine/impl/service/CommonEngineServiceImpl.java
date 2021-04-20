@@ -28,6 +28,10 @@ public abstract class CommonEngineServiceImpl<C extends AbstractEngineConfigurat
 
     }
 
+    /**
+     * 支持哪些配置？
+     * @param configuration
+     */
     public CommonEngineServiceImpl(C configuration) {
         super(configuration);
     }
@@ -36,6 +40,11 @@ public abstract class CommonEngineServiceImpl<C extends AbstractEngineConfigurat
         return commandExecutor;
     }
 
+    /**
+     * 什么时候设置的？初始化的时候
+     * build engine的初始化流程（待了解）
+     * @param commandExecutor
+     */
     public void setCommandExecutor(CommandExecutor commandExecutor) {
         this.commandExecutor = commandExecutor;
     }

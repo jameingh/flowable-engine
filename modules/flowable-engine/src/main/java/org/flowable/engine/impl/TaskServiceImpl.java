@@ -12,62 +12,12 @@
  */
 package org.flowable.engine.impl;
 
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.flowable.common.engine.api.FlowableIllegalArgumentException;
 import org.flowable.common.engine.impl.interceptor.EngineConfigurationConstants;
 import org.flowable.common.engine.impl.service.CommonEngineServiceImpl;
 import org.flowable.engine.TaskService;
 import org.flowable.engine.impl.cfg.ProcessEngineConfigurationImpl;
-import org.flowable.engine.impl.cmd.AddCommentCmd;
-import org.flowable.engine.impl.cmd.AddIdentityLinkCmd;
-import org.flowable.engine.impl.cmd.ClaimTaskCmd;
-import org.flowable.engine.impl.cmd.CompleteTaskCmd;
-import org.flowable.engine.impl.cmd.CompleteTaskWithFormCmd;
-import org.flowable.engine.impl.cmd.CreateAttachmentCmd;
-import org.flowable.engine.impl.cmd.DelegateTaskCmd;
-import org.flowable.engine.impl.cmd.DeleteAttachmentCmd;
-import org.flowable.engine.impl.cmd.DeleteCommentCmd;
-import org.flowable.engine.impl.cmd.DeleteIdentityLinkCmd;
-import org.flowable.engine.impl.cmd.DeleteTaskCmd;
-import org.flowable.engine.impl.cmd.GetAttachmentCmd;
-import org.flowable.engine.impl.cmd.GetAttachmentContentCmd;
-import org.flowable.engine.impl.cmd.GetCommentCmd;
-import org.flowable.engine.impl.cmd.GetIdentityLinksForTaskCmd;
-import org.flowable.engine.impl.cmd.GetProcessInstanceAttachmentsCmd;
-import org.flowable.engine.impl.cmd.GetProcessInstanceCommentsCmd;
-import org.flowable.engine.impl.cmd.GetSubTasksCmd;
-import org.flowable.engine.impl.cmd.GetTaskAttachmentsCmd;
-import org.flowable.engine.impl.cmd.GetTaskCommentsByTypeCmd;
-import org.flowable.engine.impl.cmd.GetTaskCommentsCmd;
-import org.flowable.engine.impl.cmd.GetTaskDataObjectCmd;
-import org.flowable.engine.impl.cmd.GetTaskDataObjectsCmd;
-import org.flowable.engine.impl.cmd.GetTaskEventCmd;
-import org.flowable.engine.impl.cmd.GetTaskEventsCmd;
-import org.flowable.engine.impl.cmd.GetTaskFormModelCmd;
-import org.flowable.engine.impl.cmd.GetTaskVariableCmd;
-import org.flowable.engine.impl.cmd.GetTaskVariableInstanceCmd;
-import org.flowable.engine.impl.cmd.GetTaskVariableInstancesCmd;
-import org.flowable.engine.impl.cmd.GetTaskVariablesCmd;
-import org.flowable.engine.impl.cmd.GetTasksLocalVariablesCmd;
-import org.flowable.engine.impl.cmd.GetTypeCommentsCmd;
-import org.flowable.engine.impl.cmd.HasTaskVariableCmd;
-import org.flowable.engine.impl.cmd.NewTaskCmd;
-import org.flowable.engine.impl.cmd.RemoveTaskVariablesCmd;
-import org.flowable.engine.impl.cmd.ResolveTaskCmd;
-import org.flowable.engine.impl.cmd.SaveAttachmentCmd;
-import org.flowable.engine.impl.cmd.SaveCommentCmd;
-import org.flowable.engine.impl.cmd.SaveTaskCmd;
-import org.flowable.engine.impl.cmd.SetTaskDueDateCmd;
-import org.flowable.engine.impl.cmd.SetTaskPriorityCmd;
-import org.flowable.engine.impl.cmd.SetTaskVariablesCmd;
+import org.flowable.engine.impl.cmd.*;
 import org.flowable.engine.impl.persistence.entity.CommentEntity;
 import org.flowable.engine.runtime.DataObject;
 import org.flowable.engine.task.Attachment;
@@ -78,14 +28,13 @@ import org.flowable.identitylink.api.IdentityLink;
 import org.flowable.identitylink.api.IdentityLinkType;
 import org.flowable.idm.api.IdmEngineConfigurationApi;
 import org.flowable.idm.api.IdmIdentityService;
-import org.flowable.task.api.NativeTaskQuery;
-import org.flowable.task.api.Task;
-import org.flowable.task.api.TaskBuilder;
-import org.flowable.task.api.TaskCompletionBuilder;
-import org.flowable.task.api.TaskQuery;
+import org.flowable.task.api.*;
 import org.flowable.task.service.impl.NativeTaskQueryImpl;
 import org.flowable.task.service.impl.TaskQueryImpl;
 import org.flowable.variable.api.persistence.entity.VariableInstance;
+
+import java.io.InputStream;
+import java.util.*;
 
 /**
  * @author Tom Baeyens
@@ -285,8 +234,18 @@ public class TaskServiceImpl extends CommonEngineServiceImpl<ProcessEngineConfig
         commandExecutor.execute(new SetTaskDueDateCmd(taskId, dueDate));
     }
 
+    /**
+     * 返回的信息有：数据库类型、taskService配置（包括数据库操作实现类）、变量服务配置（包括数据库操作实现类）
+     * @return
+     */
     @Override
     public TaskQuery createTaskQuery() {
+        //通过ProcessEngineConfigurationImpl 获取 数据库类型、taskService配置、变量服务配置。对外包装成一个TaskQueryImpl类。
+        //具体的数据库类型、taskService配置、变量服务配置是什么样的？看一看ProcessEngineConfigurationImpl类和参考AbstractEngineConfiguration类
+        // 🌈 数据库类型：内部的Properties对象预先保存了各种支持的数据，从datasource中获取connection，再从连接里获取数据库类型
+        //   PooledDataSource 数据源的初始化就是拿的配置文件里配置的数据库信息初始化的，参考AbstractEngineConfiguration.initDataSource()里的下面这段代码
+        //   PooledDataSource pooledDataSource = new PooledDataSource(this.getClass().getClassLoader(), jdbcDriver, jdbcUrl, jdbcUsername, jdbcPassword);
+        // 🌈 taskService配置：在初始化流程引擎的时候初始化的，同时也会初始化设置一些数据库操作实现类
         return new TaskQueryImpl(commandExecutor, configuration.getDatabaseType(), configuration.getTaskServiceConfiguration(), 
                 configuration.getVariableServiceConfiguration(), getIdmIdentityService());
     }

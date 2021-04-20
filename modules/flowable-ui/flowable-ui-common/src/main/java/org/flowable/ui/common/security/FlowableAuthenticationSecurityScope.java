@@ -12,16 +12,21 @@
  */
 package org.flowable.ui.common.security;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+
 import java.util.Collection;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-
 /**
  * @author Filip Hrisafov
+ * 包装Authentication，细粒度的返回Authentication的部分数据，比如userId、groupIds、TenantId、hasAutority
+ *
+ * 这里的设计猜想：
+ * 为什么不直接从Authentication拿数据？
+ * 为了扩展性，如果想要拿其他的信息，自己实现SecurityScope接口，封装
  */
 public class FlowableAuthenticationSecurityScope implements SecurityScope {
 

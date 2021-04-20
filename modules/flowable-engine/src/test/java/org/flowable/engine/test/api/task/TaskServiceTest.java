@@ -13,33 +13,8 @@
 
 package org.flowable.engine.test.api.task;
 
-import static java.util.stream.Collectors.toSet;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.entry;
-import static org.assertj.core.api.Assertions.fail;
-import static org.assertj.core.api.Assertions.tuple;
-import static org.flowable.engine.impl.test.HistoryTestHelper.isHistoryLevelAtLeast;
-
-import java.text.SimpleDateFormat;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Stream;
-
 import org.apache.ibatis.exceptions.PersistenceException;
-import org.flowable.common.engine.api.FlowableException;
-import org.flowable.common.engine.api.FlowableIllegalArgumentException;
-import org.flowable.common.engine.api.FlowableObjectNotFoundException;
-import org.flowable.common.engine.api.FlowableOptimisticLockingException;
-import org.flowable.common.engine.api.FlowableTaskAlreadyClaimedException;
+import org.flowable.common.engine.api.*;
 import org.flowable.common.engine.api.scope.ScopeTypes;
 import org.flowable.common.engine.impl.history.HistoryLevel;
 import org.flowable.common.engine.impl.interceptor.EngineConfigurationConstants;
@@ -75,6 +50,16 @@ import org.flowable.variable.api.persistence.entity.VariableInstance;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toSet;
+import static org.assertj.core.api.Assertions.*;
+import static org.flowable.engine.impl.test.HistoryTestHelper.isHistoryLevelAtLeast;
+
 /**
  * @author Frederik Heremans
  * @author Joram Barrez
@@ -88,6 +73,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
     @AfterEach
     public void tearDown() throws Exception {
         if (task != null) {
+            //cascade：级联
             taskService.deleteTask(task.getId(), true);
         }
     }
@@ -106,6 +92,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
                 category("testCategory").
                 parentTaskId("testParentTaskId").
                 tenantId("testTenantId").
+                //todo
                 formKey("testFormKey").
                 taskDefinitionId("testDefinitionId").
                 taskDefinitionKey("testDefinitionKey").
@@ -132,6 +119,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
     @Test
     public void testBuilderCreateTaskWithParent() {
+        //使用父级任务创建子任务
         Task parentTask = taskService.newTask();
         taskService.saveTask(parentTask);
         try {
@@ -151,6 +139,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
     @Test
     public void testCreateTaskWithOwnerAssigneeAndIdentityLinks() {
+        //创建的任务包括：owner、assignee、身份链接
         task = taskService.createTaskBuilder().
                 name("testName").
                 owner("testOwner").
@@ -180,6 +169,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
     @Test
     public void testCreateTaskWithBuilderAndPostprocessor() {
+        //演示TaskPostProcessor的使用，TaskPostProcessor的作用是用来增强taskEntity,比如这里是添加身份链接
         TaskServiceConfiguration taskServiceConfiguration = (TaskServiceConfiguration) this.processEngineConfiguration.getServiceConfigurations().get(EngineConfigurationConstants.KEY_TASK_SERVICE_CONFIG);
         TaskPostProcessor previousTaskPostProcessor = taskServiceConfiguration.getTaskPostProcessor();
         try {
@@ -261,7 +251,9 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
     public void testSaveTaskUpdate() throws Exception {
 
         SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss");
+        //实例化
         org.flowable.task.api.Task task = taskService.newTask();
+        //初始化
         task.setDescription("description");
         task.setName("taskname");
         task.setPriority(0);
@@ -269,9 +261,11 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         task.setOwner("taskowner");
         Date dueDate = sdf.parse("01/02/2003 04:05:06");
         task.setDueDate(dueDate);
+        //持久化
         taskService.saveTask(task);
 
         // Fetch the task again and update
+        //根据taskId查询任务，返回单个结果
         task = taskService.createTaskQuery().taskId(task.getId()).singleResult();
         assertThat(task.getDescription()).isEqualTo("description");
         assertThat(task.getName()).isEqualTo("taskname");
@@ -341,6 +335,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
             taskService.saveTask(task);
             String taskId = task.getId();
 
+            //设置授权用户
             identityService.setAuthenticatedUserId("johndoe");
             // Fetch the task again and update
             taskService
@@ -380,6 +375,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
             taskService.addComment(taskId, null, customType1, "This is another Type1 comment");
             Comment customComment3 = taskService.addComment(taskId, null, customType2, "This is another custom comment. Type2 this time!");
 
+            //默认的comment类型就叫comment，可以根据业务类型的需要，提供一个type来区分comment类型
             assertThat(comment.getType()).isEqualTo(CommentEntity.TYPE_COMMENT);
             assertThat(customComment1.getType()).isEqualTo(customType1);
             assertThat(customComment3.getType()).isEqualTo(customType2);
@@ -387,19 +383,23 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
             assertThat(taskService.getComment(comment.getId())).isNotNull();
             assertThat(taskService.getComment(customComment1.getId())).isNotNull();
 
+            //直接调用getTaskComments查询，只能查询到type是comment类型的
             List<Comment> regularComments = taskService.getTaskComments(taskId);
             assertThat(regularComments)
                     .extracting(Comment::getFullMessage)
                     .containsExactly("This is a regular comment");
 
+            //想要查询自定义类型的comment，需要调用getTaskEvents
             List<Event> allComments = taskService.getTaskEvents(taskId);
             assertThat(allComments).hasSize(4);
 
+            //或者调用getCommentsByType查询指定type的comment
             List<Comment> type2Comments = taskService.getCommentsByType(customType2);
             assertThat(type2Comments)
                     .extracting(Comment::getFullMessage)
                     .containsExactly("This is another custom comment. Type2 this time!");
 
+            //或者调用getTaskComments(taskId, customType1)，可以查询出指定task的，指定comment type的comment
             List<Comment> taskTypeComments = taskService.getTaskComments(taskId, customType1);
             assertThat(taskTypeComments).hasSize(2);
 
@@ -428,6 +428,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
                     .extracting(Comment::getFullMessage)
                     .containsExactly("This is a regular comment");
 
+            //更新comment
             comment.setFullMessage("Updated comment");
             taskService.saveComment(comment);
 
@@ -508,7 +509,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
     @Deployment(resources = { "org/flowable/engine/test/api/oneTaskProcess.bpmn20.xml" })
     public void testTaskAttachmentWithProcessInstanceId() {
         if (isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, processEngineConfiguration)) {
-
+            //使用流程定义，启动一个流程实例
             ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
 
             String processInstanceId = processInstance.getId();
@@ -533,6 +534,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
     @Test
     @Deployment(resources = { "org/flowable/engine/test/api/oneTaskProcess.bpmn20.xml" })
     public void saveUserTaskTest() {
+        //启动流程的流程变量
         Map<String, Object> startMap = new HashMap<>();
         startMap.put("titleId", "testTitleId");
         startMap.put("otherVariable", "testOtherVariable");
@@ -565,6 +567,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         org.flowable.task.api.Task task = taskService.newTask();
         task.setOwner("johndoe");
         taskService.saveTask(task);
+        //任务委派给joesmoe，本分配任务的人完成任务后，assign又会被设置为owner
         taskService.delegateTask(task.getId(), "joesmoe");
         String taskId = task.getId();
 
@@ -577,6 +580,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThatThrownBy(() -> taskService.complete(taskId))
                 .isExactlyInstanceOf(FlowableException.class);
 
+        //处于pending的task只能resolve，不能complete,resolve后，assignee变成和owner
         taskService.resolveTask(taskId);
         task = taskService.createTaskQuery().taskId(taskId).singleResult();
         assertThat(task.getOwner()).isEqualTo("johndoe");
@@ -641,6 +645,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         task = taskService.createTaskQuery().taskId(task.getId()).singleResult();
         assertThat(task.getAssignee()).isEqualTo("johndoe");
 
+        //更新assignee为joesmoe
         task.setAssignee("joesmoe");
         taskService.saveTask(task);
 
@@ -741,6 +746,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
     @Test
     public void testClaimAlreadyClaimedTaskByOtherUser() {
+        //新建一个task，两个用户
         org.flowable.task.api.Task task = taskService.newTask();
         taskService.saveTask(task);
         User user = identityService.newUser("user");
@@ -749,8 +755,10 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         identityService.saveUser(secondUser);
 
         // Claim task the first time
+        // 认领任务
         taskService.claim(task.getId(), user.getId());
 
+        // 已经被认领的任务不能认领
         assertThatThrownBy(() -> taskService.claim(task.getId(), secondUser.getId()))
                 .isInstanceOf(FlowableTaskAlreadyClaimedException.class)
                 .hasMessage("Task '" + task.getId() + "' is already claimed by someone else.");
@@ -772,6 +780,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         task = taskService.createTaskQuery().taskId(task.getId()).singleResult();
 
         // Claim the task again with the same user. No exception should be thrown
+        // 同一个用户可以重复认领任务，不报错
         taskService.claim(task.getId(), user.getId());
 
         taskService.deleteTask(task.getId(), true);
@@ -791,6 +800,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThat(task.getAssignee()).isEqualTo(user.getId());
 
         // Unclaim the task
+        // 反向认领任务
         taskService.unclaim(task.getId());
 
         task = taskService.createTaskQuery().taskId(task.getId()).singleResult();
@@ -834,6 +844,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         taskService.saveTask(task);
 
         String taskId = task.getId();
+        // 完成任务
         taskService.complete(taskId, (Map<String, Object>) null);
 
         if (isHistoryLevelAtLeast(HistoryLevel.AUDIT, processEngineConfiguration)) {
@@ -885,6 +896,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         // Complete first task
         Map<String, Object> taskParams = new HashMap<>();
         taskParams.put("myParam", "myValue");
+        // 完成第一个任务，设置流程变量
         taskService.complete(task.getId(), taskParams);
 
         // Fetch second task
@@ -892,6 +904,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThat(task.getName()).isEqualTo("Second task");
 
         // Verify task parameters set on execution
+        // 查询之前任务流转过来的流程变量
         Map<String, Object> variables = runtimeService.getVariables(processInstance.getId());
         assertThat(variables)
                 .containsOnly(entry("myParam", "myValue"));
@@ -1076,6 +1089,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThat(runtimeService.getVariable(processInstance.getId(), "b")).isNull();
 
         // verify script listener has done its job
+        // sum？在哪里配置的？还是支持一些算术运算？
         assertThat(runtimeService.getVariable(processInstance.getId(), "sum")).isEqualTo(2);
 
         // Fetch second task
@@ -1085,6 +1099,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
     @Test
     @Deployment(resources = { "org/flowable/engine/test/api/oneTaskWithFormKeyProcess.bpmn20.xml" })
     public void taskFormModelExceptions() {
+        // 启动一个流程实例，使用流程实例创建一个任务
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskWithFormProcess");
         org.flowable.task.api.Task task = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult();
 
@@ -1113,6 +1128,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         // Fetch task
         org.flowable.task.api.Task task = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult();
         assertThat(task.getName()).isEqualTo("my task");
+        // 设置formkey
         assertThat(task.getFormKey()).isEqualTo("myFormKey");
         assertThat(task.getAssignee()).isEqualTo("myAssignee");
         assertThat(task.getOwner()).isEqualTo("myOwner");
@@ -1137,17 +1153,21 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
     @Test
     public void testSetAssignee() {
+        // 创建用户
         User user = identityService.newUser("user");
         identityService.saveUser(user);
 
+        // 创建任务
         org.flowable.task.api.Task task = taskService.newTask();
         assertThat(task.getAssignee()).isNull();
         taskService.saveTask(task);
 
         // Set assignee
+        // 为任务分配用户
         taskService.setAssignee(task.getId(), user.getId());
 
         // Fetch task again
+        // 查询任务
         task = taskService.createTaskQuery().taskId(task.getId()).singleResult();
         assertThat(task.getAssignee()).isEqualTo(user.getId());
 
@@ -1189,6 +1209,8 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         taskService.addCandidateUser(task.getId(), user.getId());
 
         // Add as candidate the second time
+        // addCandidateUser方法是addUserIdentityLink方法的简化
+        // 设置两次用户不会报异常
         taskService.addCandidateUser(task.getId(), user.getId());
 
         identityService.deleteUser(user.getId());
@@ -1206,6 +1228,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         org.flowable.task.api.Task currentTask = taskService.createTaskQuery().singleResult();
         assertThat(((CountingTaskEntity) currentTask).getIdentityLinkCount()).isZero();
 
+        // 为任务添加用户身份链接
         taskService.addUserIdentityLink(currentTask.getId(), "user01", IdentityLinkType.PARTICIPANT);
         currentTask = taskService.createTaskQuery().singleResult();
         assertThat(((CountingTaskEntity) currentTask).getIdentityLinkCount()).isEqualTo(1);
@@ -1226,6 +1249,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         currentTask = taskService.createTaskQuery().singleResult();
         assertThat(((CountingTaskEntity) currentTask).getIdentityLinkCount()).isEqualTo(3);
 
+        // 重复添加两次group02，IdentityLinkCount累加
         taskService.addGroupIdentityLink(currentTask.getId(), "group02", IdentityLinkType.PARTICIPANT);
         currentTask = taskService.createTaskQuery().singleResult();
         assertThat(((CountingTaskEntity) currentTask).getIdentityLinkCount()).isEqualTo(4);
@@ -1234,6 +1258,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         taskService.deleteGroupIdentityLink(currentTask.getId(), "group02", IdentityLinkType.PARTICIPANT);
         currentTask = taskService.createTaskQuery().singleResult();
         // Two identityLinks with id "group02" are found. Both are deleted.
+        // 两个group02都会被删
         assertThat(((CountingTaskEntity) currentTask).getIdentityLinkCount()).isEqualTo(2);
 
         // remove "user02" once
@@ -1242,6 +1267,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThat(((CountingTaskEntity) currentTask).getIdentityLinkCount()).isEqualTo(1);
 
         // remove "user02" twice
+        // 重复删除不会报错
         taskService.deleteUserIdentityLink(currentTask.getId(), "user02", IdentityLinkType.PARTICIPANT);
         currentTask = taskService.createTaskQuery().singleResult();
         assertThat(((CountingTaskEntity) currentTask).getIdentityLinkCount()).isEqualTo(1);
@@ -1367,8 +1393,10 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         taskService.saveTask(task);
         String taskId = task.getId();
 
+        // 创建一个用户
         identityService.saveUser(identityService.newUser("kermit"));
 
+        // 添加任务的候选人
         taskService.addCandidateUser(taskId, "kermit");
         List<IdentityLink> identityLinks = taskService.getIdentityLinksForTask(taskId);
         assertThat(identityLinks)
@@ -1407,6 +1435,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
         identityService.saveUser(identityService.newUser("kermit"));
 
+        // 认领任务和addCandidateUser类似，只不过IdentityLinkType类型不是CANDIDATE，而是ASSIGNEE
         taskService.claim(taskId, "kermit");
         List<IdentityLink> identityLinks = taskService.getIdentityLinksForTask(taskId);
         assertThat(identityLinks)
@@ -1425,6 +1454,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         String taskId = task.getId();
 
         taskService.claim(taskId, "nonExistingAssignee");
+        // 不存在的用户去认领任务也会成功认领，不会校验用户存不存在
         List<IdentityLink> identityLinks = taskService.getIdentityLinksForTask(taskId);
         assertThat(identityLinks)
                 .extracting(IdentityLink::getUserId, IdentityLink::getGroupId, IdentityLink::getType)
@@ -1443,14 +1473,19 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         identityService.saveUser(identityService.newUser("kermit"));
         identityService.saveUser(identityService.newUser("fozzie"));
 
+        // 先认领，认领的时候，kermit是assignee
         taskService.claim(taskId, "kermit");
+
+        // 再委派，委派给fozzie后，fozzie是assignee，kermit变成了owner
         taskService.delegateTask(taskId, "fozzie");
 
         List<IdentityLink> identityLinks = taskService.getIdentityLinksForTask(taskId);
         assertThat(identityLinks)
                 .extracting(IdentityLink::getUserId, IdentityLink::getGroupId, IdentityLink::getType)
                 .containsExactlyInAnyOrder(
+                        // 调用delegateTask，会设置assignee
                         tuple("fozzie", null, IdentityLinkType.ASSIGNEE),
+                        // 调用claim，会设置owner
                         tuple("kermit", null, IdentityLinkType.OWNER)
                 );
 
@@ -1517,6 +1552,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         // Set the due date to a non-null value
         // We need to make sure the time ends on .000, .003 or .007 due to SQL Server rounding to that
         Date now = Date.from(Instant.now().truncatedTo(ChronoUnit.SECONDS).plusMillis(843));
+        // 设置到期日
         taskService.setDueDate(task.getId(), now);
 
         // Fetch task to check if the due date was persisted
@@ -1561,9 +1597,11 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
      */
     @Test
     public void testSetDelegationState() {
+        // 创建任务的时候，设置owner
         org.flowable.task.api.Task task = taskService.newTask();
         task.setOwner("wuzh");
         taskService.saveTask(task);
+        // 委派任务给other
         taskService.delegateTask(task.getId(), "other");
         String taskId = task.getId();
 
@@ -1572,6 +1610,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThat(task.getAssignee()).isEqualTo("other");
         assertThat(task.getDelegationState()).isEqualTo(DelegationState.PENDING);
 
+        // 前面的实验结果：只有状态是RESOLVED的task才可以complete
         task.setDelegationState(DelegationState.RESOLVED);
         taskService.saveTask(task);
 
@@ -1639,6 +1678,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
         org.flowable.task.api.Task currentTask = taskService.createTaskQuery().singleResult();
 
+        // 不同的设置流程变量的方式
         Map<String, Object> varsToDelete = new HashMap<>();
         varsToDelete.put("variable1", "value1");
         varsToDelete.put("variable2", "value2");
@@ -1658,6 +1698,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThat(taskService.getVariable(currentTask.getId(), "variable2")).isNull();
         assertThat(taskService.getVariable(currentTask.getId(), "variable3")).isEqualTo("value3");
 
+        // VariableLocal？
         assertThat(taskService.getVariableLocal(currentTask.getId(), "variable1")).isNull();
         assertThat(taskService.getVariableLocal(currentTask.getId(), "variable2")).isNull();
         assertThat(taskService.getVariableLocal(currentTask.getId(), "variable3")).isNull();
@@ -1681,6 +1722,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
 
         org.flowable.task.api.Task currentTask = taskService.createTaskQuery().singleResult();
 
+        // 设置了VariableLocal后，getVariable和getVariableLocal都可以获取到
         taskService.setVariableLocal(currentTask.getId(), "variable1", "value1");
         assertThat(taskService.getVariable(currentTask.getId(), "variable1")).isEqualTo("value1");
         assertThat(taskService.getVariableLocal(currentTask.getId(), "variable1")).isEqualTo("value1");
@@ -1711,6 +1753,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThat(((CountingTaskEntity) currentTask).getVariableCount()).isEqualTo(1);
 
         // process variables should have no effect
+        // 流程变量不累加
         taskService.setVariable(currentTask.getId(), "processVariable1", "procValue1");
         currentTask = taskService.createTaskQuery().singleResult();
 
@@ -1739,6 +1782,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThat(((CountingTaskEntity) currentTask).getVariableCount()).isZero();
 
         // make sure it does not get negative
+        // 都支持重复删除，删除一个不存在的变量，不会有任何影响
         taskService.removeVariableLocal(currentTask.getId(), "variable1");
         currentTask = taskService.createTaskQuery().singleResult();
         assertThat(((CountingTaskEntity) currentTask).getVariableCount()).isZero();
@@ -1767,6 +1811,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         taskService.setVariablesLocal(currentTask.getId(), varsToDelete);
         taskService.setVariableLocal(currentTask.getId(), "variable3", "value3");
 
+        // 设置了VariablesLocal，通过getVariable和getVariableLocal都能获取到，设置了Variables，只有getVariable能获取到
         assertThat(taskService.getVariable(currentTask.getId(), "variable1")).isEqualTo("value1");
         assertThat(taskService.getVariable(currentTask.getId(), "variable2")).isEqualTo("value2");
         assertThat(taskService.getVariable(currentTask.getId(), "variable3")).isEqualTo("value3");
@@ -1820,6 +1865,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
                     .asc()
                     .list();
 
+            // 历史的设置过的变量都能查到，即使key相同，也不会被覆盖，应该是通过版本号或者时间戳之类的实现区分
             assertThat(resultSet).hasSize(2);
             assertThat(((HistoricVariableUpdate) resultSet.get(0)).getVariableName()).isEqualTo("variable1");
             assertThat(((HistoricVariableUpdate) resultSet.get(0)).getValue()).isEqualTo("value1");
@@ -1827,6 +1873,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
             assertThat(((HistoricVariableUpdate) resultSet.get(1)).getValue()).isEqualTo("value2");
 
             resultSet = historyService.createHistoricDetailQuery().variableUpdates()
+                    //
                     .activityInstanceId(historicActivitiInstance.getId())
                     .orderByTime()
                     .asc()
@@ -1871,6 +1918,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
             assertThat(((HistoricVariableUpdate) resultSet.get(1)).getValue()).isEqualTo("value2");
 
             resultSet = historyService.createHistoricDetailQuery().variableUpdates()
+                    // 通过活动实例和通过历史活动实例，查询历史变量的效果是一样的
                     .activityInstanceId(activityInstance.getId())
                     .orderByTime()
                     .asc()
@@ -2072,6 +2120,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThat(task.getFormKey()).isEqualTo("first-form.json");
         taskService.complete(task.getId());
 
+        // formkey支持表达式
         task = taskService.createTaskQuery().singleResult();
         assertThat(task.getFormKey()).isEqualTo("form-abc.json");
 
@@ -2180,6 +2229,7 @@ public class TaskServiceTest extends PluggableFlowableTestCase {
         assertThat(task.getClaimTime()).isNotNull();
 
         // Unclaim task
+        // 反向认领会把认领时间也设置为空
         taskService.unclaim(task.getId());
         task = taskService.createTaskQuery().taskId(task.getId()).singleResult();
 

@@ -12,21 +12,17 @@
  */
 package org.flowable.engine.test.api.runtime;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.fail;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
 import org.flowable.engine.runtime.Execution;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.engine.test.Deployment;
 import org.flowable.variable.api.persistence.entity.VariableInstance;
 import org.junit.jupiter.api.Test;
+
+import java.util.*;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 /**
  * @author Daisuke Yoshimoto
@@ -36,6 +32,7 @@ public class RuntimeVariablesTest extends PluggableFlowableTestCase {
     @Test
     @Deployment
     public void testGetVariablesByExecutionIds() {
+        // 启动两个流程
         ProcessInstance processInstance1 = runtimeService.startProcessInstanceByKey("oneTaskProcess");
         ProcessInstance processInstance2 = runtimeService.startProcessInstanceByKey("oneTaskProcess");
         org.flowable.task.api.Task task1 = taskService.createTaskQuery().processInstanceId(processInstance1.getId()).singleResult();
@@ -54,6 +51,7 @@ public class RuntimeVariablesTest extends PluggableFlowableTestCase {
         // only 1 process
         Set<String> executionIds = new HashSet<>();
         executionIds.add(processInstance1.getId());
+        // 查询流程变量，不是本地变量
         List<VariableInstance> variables = runtimeService.getVariableInstancesByExecutionIds(executionIds);
         assertThat(variables).hasSize(1);
         checkVariable(processInstance1.getId(), "executionVar1", "helloWorld1", variables);
@@ -116,6 +114,7 @@ public class RuntimeVariablesTest extends PluggableFlowableTestCase {
         List<Execution> executions = runtimeService.createExecutionQuery().processInstanceId(processInstance.getId()).list();
         for (Execution execution : executions) {
             if (!processInstance.getId().equals(execution.getId())) {
+                // 不是流程实例的执行路径实例
                 executionIds.add(execution.getId());
                 runtimeService.setVariableLocal(execution.getId(), "executionVar", "executionVar");
             }

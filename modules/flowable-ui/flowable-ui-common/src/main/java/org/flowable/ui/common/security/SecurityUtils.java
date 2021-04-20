@@ -56,6 +56,7 @@ public class SecurityUtils {
     }
 
     public static SecurityScope getCurrentSecurityScope() {
+        //从security上下文中获取，上下文中一般使用ThreadLocal来传递，也可以是默认的空的实现（GlobalSecurityContextHolderStrategy），具体由策略模式实现
         SecurityContext securityContext = SecurityContextHolder.getContext();
         if (securityContext != null && securityContext.getAuthentication() != null) {
             return getSecurityScope(securityContext.getAuthentication());
@@ -64,9 +65,15 @@ public class SecurityUtils {
     }
 
     public static SecurityScope getSecurityScope(Authentication authentication) {
+        //security的信息，是从authentication里抽取的部分信息
         return securityScopeProvider.getSecurityScope(authentication);
     }
 
+    /**
+     * 从security上下文中获取security上下文信息，上下文信息包括：userId、groupIds、TenantId、hasAutority
+     * 参考FlowableAuthenticationSecurityScope类对Authentication的包装
+     * @return SecurityScope（userId、groupIds、TenantId、hasAutority）
+     */
     public static SecurityScope getAuthenticatedSecurityScope() {
         SecurityScope currentSecurityScope = getCurrentSecurityScope();
         if (currentSecurityScope != null) {

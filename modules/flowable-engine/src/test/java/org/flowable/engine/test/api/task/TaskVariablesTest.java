@@ -13,23 +13,17 @@
 
 package org.flowable.engine.test.api.task;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.entry;
-import static org.assertj.core.api.Assertions.fail;
-
-import java.io.Serializable;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.flowable.engine.impl.test.PluggableFlowableTestCase;
 import org.flowable.engine.runtime.Execution;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.engine.test.Deployment;
 import org.flowable.variable.api.persistence.entity.VariableInstance;
 import org.junit.jupiter.api.Test;
+
+import java.io.Serializable;
+import java.util.*;
+
+import static org.assertj.core.api.Assertions.*;
 
 /**
  * @author Tom Baeyens
@@ -60,6 +54,7 @@ public class TaskVariablesTest extends PluggableFlowableTestCase {
         assertThat(runtimeService.getVariablesLocal(processInstanceId)).isEmpty();
         assertThat(taskService.getVariablesLocal(taskId)).isEmpty();
 
+        //全局变量
         runtimeService.setVariable(processInstanceId, "instrument", "trumpet");
 
         assertThat(taskService.getVariablesLocal(taskId)).isEmpty();
@@ -96,14 +91,16 @@ public class TaskVariablesTest extends PluggableFlowableTestCase {
                         entry("instrument", "trumpet")
                 );
 
+        //设置task本地变量
         taskService.setVariableLocal(taskId, "budget", "unlimited");
         assertThat(taskService.hasVariableLocal(taskId, "budget")).isTrue();
         assertThat(taskService.hasVariable(taskId, "budget")).isTrue();
-
+        //VariablesLocal如果是task的，getVariablesLocal只能获取到VariablesLocal
         assertThat(taskService.getVariablesLocal(taskId))
                 .containsOnly(
                         entry("budget", "unlimited")
                 );
+        //getVariables可以获取到包括VariablesLocal
         assertThat(taskService.getVariables(taskId))
                 .containsOnly(
                         entry("budget", "unlimited"),
@@ -111,6 +108,7 @@ public class TaskVariablesTest extends PluggableFlowableTestCase {
                         entry("instrument", "trumpet")
                 );
 
+        //runtimeService无法获取到task的VariablesLocal变量
         assertThat(runtimeService.getVariables(processInstanceId))
                 .containsOnly(
                         entry("player", "gonzo"),
@@ -244,16 +242,19 @@ public class TaskVariablesTest extends PluggableFlowableTestCase {
     })
     public void testGetVariablesLocalByTaskIdsForScope() {
         Map<String, Object> processVars = new HashMap<>();
+        //启动流程设置的流程变量，这个是全局的，流程实例上的变量
         processVars.put("processVar", "processVar");
         ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("variableScopeProcess", processVars);
 
         List<Execution> executions = runtimeService.createExecutionQuery().processInstanceId(processInstance.getId()).list();
         for (Execution execution : executions) {
             if (!processInstance.getId().equals(execution.getId())) {
+                //流程实例中的执行路径上，设置的流程变量
                 runtimeService.setVariableLocal(execution.getId(), "executionVar", "executionVar");
             }
         }
 
+        //给任务设置的变量
         List<org.flowable.task.api.Task> tasks = taskService.createTaskQuery().processInstanceId(processInstance.getId()).list();
         Set<String> taskIds = new HashSet<>();
         for (org.flowable.task.api.Task task : tasks) {

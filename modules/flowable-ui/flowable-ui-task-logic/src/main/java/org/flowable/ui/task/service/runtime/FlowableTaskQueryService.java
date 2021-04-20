@@ -12,15 +12,9 @@
  */
 package org.flowable.ui.task.service.runtime;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.util.ISO8601DateFormat;
 import org.apache.commons.lang3.StringUtils;
 import org.flowable.app.api.AppRepositoryService;
 import org.flowable.app.api.repository.AppDefinition;
@@ -58,9 +52,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.util.ISO8601DateFormat;
+import java.util.*;
 
 /**
  * @author Tijs Rademakers
@@ -121,6 +113,7 @@ public class FlowableTaskQueryService {
             historicTaskInstanceQuery.finished();
             taskInfoQueryWrapper = new TaskInfoQueryWrapper(historicTaskInstanceQuery);
         } else {
+            //包装类只是为了处理范型
             taskInfoQueryWrapper = new TaskInfoQueryWrapper(taskService.createTaskQuery());
         }
 

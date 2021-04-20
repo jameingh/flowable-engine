@@ -29,6 +29,7 @@ public class TaskQueryResource {
     @Autowired
     protected FlowableTaskQueryService taskQueryService;
 
+    //根据流程实例ID查询任务
     @PostMapping(value = "/rest/query/tasks", produces = "application/json")
     public ResultListDataRepresentation listTasks(@RequestBody ObjectNode requestNode) {
         return taskQueryService.listTasks(requestNode);
